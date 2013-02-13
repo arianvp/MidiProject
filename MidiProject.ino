@@ -3,7 +3,10 @@
 #include <MIDI.h>
 #include <AdaEncoder.h>
 
-#include <pt.h>
+#include <pt.h> // protothreads emuleren threads in arduino.
+                // Het stelt je in staat meerdere taken tegelijkertijd uit te voeren.
+                // dit is ideaal omdat we tijdens het debouncen van buttons andere
+                // buttons kunnen uitlezen.
 
 struct input {
   const unsigned char pin;
@@ -75,11 +78,14 @@ struct input muxed_pots[] = {
 };
 
 
+// selecteert welke pin van de multiplexer uitgelezen gaat worden
 void set_channel(int channel) {
   for (int i = 0; i < 4; i++) {
     digitalWrite(i + 2, bitRead(channel, i));
   }
 }
+
+// dit zijn de twee joghweels
 AdaEncoder encoderA = AdaEncoder('a', 8, 9);
 AdaEncoder encoderB = AdaEncoder('b', 10, 11);
 
@@ -92,8 +98,10 @@ void setup () {
     pinMode(direct_buttons[i].pin, INPUT);
     digitalWrite(direct_buttons[i].pin, HIGH);
   }
+
   pinMode(A0, INPUT);
 
+  // enable internal pull-up
   pinMode(6, INPUT); 
   digitalWrite(6, HIGH);
   pinMode(7, INPUT); 
@@ -110,11 +118,13 @@ void setup () {
 
 }
 
-bool firstrun = false;
 PT_THREAD(handle_direct_input(struct input *btn)) {
   PT_BEGIN(&btn->pt);
   btn->val = digitalRead(btn->pin);
   if (btn->val != btn->state) {
+
+    // wacht 'btn->timestamp' seconden. Tijdens dit wachten kunnen andere PT_THREADS
+    // worden uitgevoerd. Zo is er nooit input-vertraging
     PT_WAIT_UNTIL(&btn->pt, (millis() - btn->timestamp) > btn->debounce);
     if (digitalRead(btn->pin) == btn->val) {
       if (btn->val == LOW) {
@@ -139,6 +149,9 @@ PT_THREAD(handle_muxed_button(struct input *btn)) {
   btn->val = digitalRead(A0);
   if (btn->val != btn->state) {
     digitalWrite(A0, LOW);
+
+    // wacht 'btn->timestamp' seconden. Tijdens dit wachten kunnen andere PT_THREADS
+    // worden uitgevoerd. Zo is er nooit input-vertraging
     PT_WAIT_UNTIL(&btn->pt, (millis() - btn->timestamp) > btn->debounce);
     digitalWrite(A0, HIGH);
     if (digitalRead(A0) == btn->val) {
@@ -166,6 +179,10 @@ void handle_muxed_pot(struct input *pot) {
    */
   int val = analogRead(A0);
 
+
+    // 8 en 1018 zijn dead-zones. Tussen deze waarden zijn de potentiometers stabiel
+    // onder de 8 en boven de 1018 haperen ze. (Zou netter zijn om deze eigenschap per potentiometer
+    // te definieren in struct input)
   val = val < 8 ? 0 : val > 1018 ? 1023 : val;
   val = map(val,0,1023,0,127);
 

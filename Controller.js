@@ -1,3 +1,10 @@
+/*
+ *  Code for adding jogwheel support.
+ *  This is for Mixxx DJ software.  Traktor supports our jogwheels out of the box.
+ *  It 'works' but doesn't sound perfect yet. (It's jittery)
+ */
+
+
 function Controller () {
 
 }
@@ -5,7 +12,10 @@ function Controller () {
 Controller.scratching = [];
 
 Controller.ticks = [0,0];
+
 Controller.timer = [];
+
+//
 Controller.init = function () {
     Controller.timer[0] = engine.beginTimer(200, "Controller.resetTicks()");
     Controller.timer[1] = engine.beginTimer(5, "Controller.handleTicks()");
